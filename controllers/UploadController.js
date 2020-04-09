@@ -6,7 +6,7 @@ const auth = require("../middlewares/jwt");
 const upload = require("../middlewares/multer");
 var mongoose = require("mongoose");
 mongoose.set("useFindAndModify", false);
-
+var multer = require("multer");
 // Book Schema
 // function BookData(data) {
 // 	this.id = data._id;
@@ -26,6 +26,7 @@ mongoose.set("useFindAndModify", false);
  * @returns {Object}
  */
 exports.upload = [
+	auth,
 	upload.single("upload"),
 	(req, res) => {
 		try {
@@ -35,14 +36,16 @@ exports.upload = [
 				return apiResponse.validationErrorWithData(res, "Validation Error.", errors.array());
 			}
 			else {
-                
-                console.log(req.file);
-                console.log('body', req.body);
-                //Save book.
+				
+			
+				return apiResponse.successResponseWithData(res,"uploaded successs", {});
+				
+				
+				//Save book.
 				// book.save(function (err) {
 				// 	if (err) { return apiResponse.ErrorResponse(res, err); }
 				// 	let bookData = new BookData(book);
-				return apiResponse.successResponseWithData(res,"uploaded successs", {});
+			   //return apiResponse.successResponseWithData(res,"uploaded successs", {});
 				// });
 			}
 		} catch (err) {

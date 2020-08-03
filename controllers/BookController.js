@@ -5,7 +5,7 @@ const apiResponse = require("../helpers/apiResponse");
 const auth = require("../middlewares/jwt");
 var mongoose = require("mongoose");
 mongoose.set("useFindAndModify", false);
-
+const ac = require("../middlewares/accesscontroll");
 // Book Schema
 function BookData(data) {
 	this.id = data._id;
@@ -24,15 +24,22 @@ exports.bookList = [
 	auth,
 	function (req, res) {
 		try {
-			Book.find({user: req.user._id},"_id title description isbn createdAt").then((books)=>{
-				if(books.length > 0){
-					return apiResponse.successResponseWithData(res, "Operation success", books);
-				}else{
-					return apiResponse.successResponseWithData(res, "Operation success", []);
-				}
-			});
+			const permission = ac.can(req.user.role).readAny("book"); 
+			if (permission.granted) {
+				Book.find({user: req.user._id},"_id title description isbn createdAt").then((books)=>{
+					if(books.length > 0){
+						return apiResponse.successResponseWithData(res, "Operation success", books);
+					}else{
+						return apiResponse.successResponseWithData(res, "Operation success", []);
+					}
+				});
+			} else {
+				return apiResponse.ErrorResponse(res, "resource is forbidden for this user/role");
+			}
+			
 		} catch (err) {
 			//throw error in json response with status 500. 
+			console.log("err", err);
 			return apiResponse.ErrorResponse(res, err);
 		}
 	}
@@ -52,14 +59,19 @@ exports.bookDetail = [
 			return apiResponse.successResponseWithData(res, "Operation success", {});
 		}
 		try {
-			Book.findOne({_id: req.params.id,user: req.user._id},"_id title description isbn createdAt").then((book)=>{                
-				if(book !== null){
-					let bookData = new BookData(book);
-					return apiResponse.successResponseWithData(res, "Operation success", bookData);
-				}else{
-					return apiResponse.successResponseWithData(res, "Operation success", {});
-				}
-			});
+			const permission = ac.can(req.user.role).readOwn("book"); 
+			if (permission.granted) {
+				Book.findOne({_id: req.params.id,user: req.user._id},"_id title description isbn createdAt").then((book)=>{                
+					if(book !== null){
+						let bookData = new BookData(book);
+						return apiResponse.successResponseWithData(res, "Operation success", bookData);
+					}else{
+						return apiResponse.successResponseWithData(res, "Operation success", {});
+					}
+				});
+			} else {
+				return apiResponse.ErrorResponse(res, "resource is forbidden for this user/role");
+			}
 		} catch (err) {
 			//throw error in json response with status 500. 
 			return apiResponse.ErrorResponse(res, err);
@@ -102,12 +114,17 @@ exports.bookStore = [
 				return apiResponse.validationErrorWithData(res, "Validation Error.", errors.array());
 			}
 			else {
+				const permission = ac.can(req.user.role).createOwn("book"); 
+				if (permission.granted) {
 				//Save book.
-				book.save(function (err) {
-					if (err) { return apiResponse.ErrorResponse(res, err); }
-					let bookData = new BookData(book);
-					return apiResponse.successResponseWithData(res,"Book add Success.", bookData);
-				});
+					book.save(function (err) {
+						if (err) { return apiResponse.ErrorResponse(res, err); }
+						let bookData = new BookData(book);
+						return apiResponse.successResponseWithData(res,"Book add Success.", bookData);
+					});
+				} else {
+					return apiResponse.ErrorResponse(res, "resource is forbidden for this user/role");
+				}
 			}
 		} catch (err) {
 			//throw error in json response with status 500. 

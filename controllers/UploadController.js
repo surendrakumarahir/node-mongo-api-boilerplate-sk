@@ -27,9 +27,10 @@ var multer = require("multer");
  */
 exports.upload = [
 	auth,
-	upload.single("upload"),
+	upload.upload("images", "image").single("upload"),
 	(req, res) => {
 		try {
+			
 			const errors = validationResult(req);
 		
 			if (!errors.isEmpty()) {

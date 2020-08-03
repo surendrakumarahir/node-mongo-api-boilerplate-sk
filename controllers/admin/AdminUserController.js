@@ -1,16 +1,16 @@
-const UserModel = require("../models/UserModel");
+const AdminUserModel = require("../../models/admin/AdminUserModel");
 const { body,validationResult } = require("express-validator");
 const { sanitizeBody } = require("express-validator");
 //helper file to prepare responses.
-const apiResponse = require("../helpers/apiResponse");
-const utility = require("../helpers/utility");
+const apiResponse = require("../../helpers/apiResponse");
+const utility = require("../../helpers/utility");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const mailer = require("../helpers/mailer");
-const { constants } = require("../helpers/constants");
-const uploadFile = require("../middlewares/multer");
+const mailer = require("../../helpers/mailer");
+const { constants } = require("../../helpers/constants");
+
 /**
- *   User registration.
+ *  Admin User registration.
  *
  * @param {string}      firstName
  * @param {string}      lastName
@@ -21,25 +21,20 @@ const uploadFile = require("../middlewares/multer");
  */
 exports.register = [
 	// Validate fields.
-	uploadFile.upload("document/company/user", "image").fields([{ name: "photoId", maxCount: 1 },
-		{ name: "proofEmploy", maxCount: 1 },
-		{ name: "anotherDocuments", maxCount: 8 } ]),
-	body("title").isLength({ min: 1 }).trim().withMessage("Title  must be specified."),
 	body("firstName").isLength({ min: 1 }).trim().withMessage("First name must be specified.")
 		.isAlphanumeric().withMessage("First name has non-alphanumeric characters."),
 	body("lastName").isLength({ min: 1 }).trim().withMessage("Last name must be specified.")
 		.isAlphanumeric().withMessage("Last name has non-alphanumeric characters."),
-	body("contactNumber").isLength({ min: 1 }).trim().withMessage("Contact Number must be specified."),
-	body("companyId").isLength({ min: 1 }).trim().withMessage("Company Id must be specified."),
 	body("email").isLength({ min: 1 }).trim().withMessage("Email must be specified.")
 		.isEmail().withMessage("Email must be a valid email address.").custom((value) => {
-			return UserModel.findOne({email : value}).then((user) => {
+			return AdminUserModel.findOne({email : value}).then((user) => {
 				if (user) {
 					return Promise.reject("E-mail already in use");
 				}
 			});
 		}),
 	body("password").isLength({ min: 6 }).trim().withMessage("Password must be 6 characters or greater."),
+	body("roleId").isLength({ min: 1 }).trim().withMessage("Role must be specified."),
 	// Sanitize fields.
 	sanitizeBody("firstName").escape(),
 	sanitizeBody("lastName").escape(),
@@ -56,26 +51,28 @@ exports.register = [
 			}else {
 				//hash input password
 				bcrypt.hash(req.body.password,10,function(err, hash) {
-					const photoId = req.files["photoId"][0];
-					const proofEmploy = req.files["proofEmploy"][0];
-					const anotherDocuments = req.files["anotherDocuments"];
+					// generate OTP for confirmation
+					//let otp = utility.randomNumber(4);
 					// Create User object with escaped and trimmed data
-					var user = new UserModel(
-						{   
-							title: req.body.title,
+					var user = new AdminUserModel(
+						{
 							firstName: req.body.firstName,
 							lastName: req.body.lastName,
 							email: req.body.email,
-							middleName: req.body.middleName,
-							contactNumber: req.body.contactNumber,
-							companyId: req.body.companyId,
-							photoId: photoId,
-							proofEmploy: proofEmploy,
-							anotherDocuments: anotherDocuments,
 							password: hash,
-							role: req.body.role,
+							//confirmOTP: otp,
+							roleId: req.body.roleId,
 						}
 					);
+					// Html email body
+					//	let html = "<p>Please Confirm your Account.</p><p>OTP: "+otp+"</p>";
+					// Send confirmation email
+					// mailer.send(
+					// 	constants.confirmEmails.from, 
+					// 	req.body.email,
+					// 	"Confirm Account",
+					// 	html
+					// ).then(function(){
 						// Save user.
 					user.save(function (err) {
 						if (err) { return apiResponse.ErrorResponse(res, err); }
@@ -85,9 +82,12 @@ exports.register = [
 							lastName: user.lastName,
 							email: user.email
 						};
-						return apiResponse.successResponseWithData(res,"Registration Success.", userData);
+						return apiResponse.successResponseWithData(res,"Added User Success.", userData);
 					});
-					
+					// }).catch(err => {
+					// 	console.log(err);
+					// 	return apiResponse.ErrorResponse(res,err);
+					// }) ;
 				});
 			}
 		} catch (err) {
@@ -97,7 +97,7 @@ exports.register = [
 	}];
 
 /**
- * User login.
+ * Admin User login.
  *
  * @param {string}      email
  * @param {string}      password
@@ -116,23 +116,21 @@ exports.login = [
 			if (!errors.isEmpty()) {
 				return apiResponse.validationErrorWithData(res, "Validation Error.", errors.array());
 			}else {
-				UserModel.findOne({email : req.body.email}).then(user => {
+				AdminUserModel.findOne({email : req.body.email}).then(user => {
 					if (user) {
-						
 						//Compare given password with db's hash.
 						bcrypt.compare(req.body.password,user.password,function (err,same) {
 							if(same){
 								//Check account confirmation.
-							
 								if(user.isConfirmed){
 									// Check User's account active or not.
-								  if(user.status) {
-									 let userData = {
+									if(user.status) {
+										let userData = {
 											_id: user._id,
 											firstName: user.firstName,
 											lastName: user.lastName,
 											email: user.email,
-											role: user.role,
+											roleId: user.roleId,
 										};
 										//Prepare JWT token for authentication
 										const jwtPayload = userData;
@@ -144,10 +142,9 @@ exports.login = [
 										userData.token = jwt.sign(jwtPayload, secret, jwtData);
 										return apiResponse.successResponseWithData(res,"Login Success.", userData);
 									}else {
-										console.log('fass');
 										return apiResponse.unauthorizedResponse(res, "Account is not active. Please contact admin.");
 									}
-								}else{ console.log('adud');
+								}else{
 									return apiResponse.unauthorizedResponse(res, "Account is not confirmed. Please confirm your account.");
 								}
 							}else{

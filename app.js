@@ -5,7 +5,11 @@ var logger = require("morgan");
 require("dotenv").config();
 var indexRouter = require("./routes/index");
 var apiRouter = require("./routes/api");
+var adminRouter = require("./routes/admin/admin");
 var apiResponse = require("./helpers/apiResponse");
+var emailVarifyRouter = require("./routes/emailvarify");
+// middleware
+var getAuth = require("./middlewares/adminAuth");
 var cors = require("cors");
 
 // DB connection
@@ -32,16 +36,21 @@ if(process.env.NODE_ENV !== "test") {
 	app.use(logger("dev"));
 }
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 //To allow cross-origin requests
 app.use(cors());
 
+
 //Route Prefixes
 app.use("/", indexRouter);
 app.use("/api/", apiRouter);
+app.use("/emailvarify/", emailVarifyRouter);
+app.use("/admin/", getAuth, adminRouter);
+
+
 
 // throw 404 if URL not found
 app.all("*", function(req, res) {

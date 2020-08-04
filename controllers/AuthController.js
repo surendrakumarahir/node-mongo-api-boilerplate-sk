@@ -123,8 +123,11 @@ exports.login = [
 						bcrypt.compare(req.body.password,user.password,function (err,same) {
 							if(same){
 								//Check account confirmation.
+							let newUser = JSON.stringify(user);
+							let newData = JSON.parse(newUser);
 							
-								if(user.isConfirmed){
+							console.log(newData.isConfirmed);
+								if(newData.isConfirmed){
 									// Check User's account active or not.
 								  if(user.status) {
 									 let userData = {
